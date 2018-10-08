@@ -187,13 +187,6 @@ class PositionSearchProblem(search.SearchProblem):
 
     def getSuccessors(self, state):
         successors = []
-        #this is a bit tricky, but as we had different attributes attached to the state
-        #depending on the algorythm used and the problem we can recieve it in differents ways
-        #extract the position
-        if len(state[0])>2:
-            state=state[0]
-        if len(state)==3:
-            state=state[0]
         for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
             x,y = state
             dx, dy = Actions.directionToVector(action)
@@ -252,8 +245,6 @@ class StayWestSearchAgent(SearchAgent):
 
 def manhattanHeuristic(position, problem, info={}):
     "The Manhattan distance heuristic for a PositionSearchProblem"
-    if len(position)==3:
-        position = position[0]
     xy1 = position
     xy2 = problem.goal
     return abs(xy1[0] - xy2[0]) + abs(xy1[1] - xy2[1])
@@ -298,39 +289,37 @@ class CornersProblem(search.SearchProblem):
         space)
         """
         "*** YOUR CODE HERE ***"
-        return (self.startingPosition,None,0,(False,False,False,False))
+        return (self.startingPosition,[])
     def isGoalState(self, state):
         """
         Returns whether this search state is a goal state of the problem.
         """
         "*** YOUR CODE HERE ***"
-        if len(state)==3:
-            state =state[0]
-        return all(state[3])
+        visited=state[1]
+        if state[0] in self.corners:
+            if state[0] not in visited:
+                visited.append(state[0])
+            return len(visited)==4
+        return False
     def getSuccessors(self, state):
         successors = []
-        #extracting position
-        if len(state)==2:
-            state = state[0]
-        if len(state[0])>2:
-            state =state[0]
         for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
-            nextx, nexty = Actions.getSuccessor(state[0],action)
-            nextx, nexty = int(nextx), int(nexty)
+            vDest = Actions.directionToVector(state[0], action)
+            nextx, nexty = int(state[0][0] + vDest[0]), int(state[0][1] + vDest[1])
             hitsWall = self.walls[nextx][nexty]
-            #corners extraction from state attributes
-            corners = list(state[3][:])
+            visited=list(state[1])
+            
+            visited=list(state[1])
+            #If we don't hit a wall, the taken direction is valid
             if not hitsWall:
-                #if next position is a corner, set corner as True 
-                #and attach it to successor so next childs will have that information
+                #If the position we arrive once we move is a corner, we add it to visited
                 if (nextx,nexty) in self.corners:
-                    corners[self.corners.index((nextx,nexty))] = True
-                nextState = ((nextx,nexty),action,1,tuple(corners))
-                successors.append(nextState)                
-        self._expanded += 1
+                    if not nextNode in visited:
+                        visited.append(nextNode)
+                successors.append((((nextx,nexty), visited),action,1))
+        self._expanded += 1 # DO NOT CHANGE
         return successors
-
-
+    
     def getCostOfActions(self, actions):
         """
         Returns the cost of a particular sequence of actions.  If those actions
@@ -348,14 +337,16 @@ class CornersProblem(search.SearchProblem):
 def cornersHeuristic(state, problem):
     corners = problem.corners # These are the corner coordinates
     walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
-    #extracting state position
-    if len(state)==3:
-        state =state[0]
-    cost = 0
-    for i in range(0, len(corners)):
-        if not state[3][i]:
-            cost += abs(state[0][0] - corners[i][0]) + abs(state[0][1] - corners[i][1])
-    return cost 
+    cornersUnvisited = [corner for corner in corners if not corner in state[1]]
+    totalD = 0
+    current = state[0]
+    while cornersUnvisited:
+        #We'll move to the closest corner
+        dtoCorner, current = min([(util.manhattanDistance(current, corner), corner) for corner in cornersUnvisited])
+        totalD += dtoCorner
+        #Removes the corner we are heading to
+        cornersUnvisited.remove(current)
+    return totalD
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
@@ -380,21 +371,21 @@ class FoodSearchProblem:
         self.heuristicInfo = {} # A dictionary for the heuristic to store information
 
     def getStartState(self):
-       return (self.start,0,0)
+        return self.start
   
     def isGoalState(self, state):
-        return state[0][1].count() == 0
+        return state[1].count() == 0
 
     def getSuccessors(self, state):
         "Returns successor states, the actions they require, and a cost of 1."
         successors = []
         self._expanded += 1 # DO NOT CHANGE
         for direction in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
-            x,y = state[0][0]
+            x,y = state[0]
             dx, dy = Actions.directionToVector(direction)
             nextx, nexty = int(x + dx), int(y + dy)
             if not self.walls[nextx][nexty]:
-                nextFood = state[0][1].copy()
+                nextFood = state[1].copy()
                 nextFood[nextx][nexty] = False
                 successors.append( ( ((nextx, nexty), nextFood), direction, 1) )
         return successors
@@ -402,7 +393,7 @@ class FoodSearchProblem:
     def getCostOfActions(self, actions):
         """Returns the cost of a particular sequence of actions.  If those actions
         include an illegal move, return 999999"""
-        x,y= self.getStartState()[0][0]
+        x,y= self.getStartState()[0]
         cost = 0
         for action in actions:  
             # figure out the next state and see whether it's legal
@@ -420,21 +411,18 @@ class AStarFoodSearchAgent(SearchAgent):
         self.searchType = FoodSearchProblem
 
 def foodHeuristic(state, problem):
-    state = state[0]
-    position = state[0]
-
-    foodGrid = state[1]
-    maxH = -1
-    x,y = 0,0
-    #manhattan distance
-    for food in foodGrid:
-        for pos in food:
-            if pos and maxH < abs(position[0] - x) + abs(position[1] - y):
-                maxH =  abs(position[0] - x) + abs(position[1] - y)
-                print maxH  
-            y += 1
-        x += 1
-    return maxH
+    position, foodGrid = state
+    foodList=foodGrid.asList()
+    #if there is food grid, we return 
+        #the sum of: 
+            #min distance from current position to next food position
+            #max distance from closest food position to the next furhest food position
+    #otherwise return 0
+    if foodList:
+        dmin,minFood=min([(util.manhattanDistance(position, food), food) for food in foodList])
+        dmax=max([(util.manhattanDistance(minFood, food)) for food in foodList])
+        return dmin+dmax
+    return 0
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
     def registerInitialState(self, state):

@@ -76,46 +76,34 @@ def tinyMazeSearch(problem):
     return  [s, s, w, s, w, w, s, w]
 
 def depthFirstSearch(problem):
-    frontier = util.Stack()
-    return searchGoal(problem, frontier)
+    stack = util.Stack()
+    return searchPath(problem, stack)
+
+def breadthFirstSearch(problem):
+    queue = util.Queue()
+    return searchPath(problem, queue)
 
 #function that searches the goal through data structures
 #the function will be used in dfs and bfs, the only implementation
-#that changes is the datastructure itself frontier 
+#that changes is the datastructure itself 
 #(stack for dfs and queue for bfs)
-
-def searchGoal(problem, frontier):
+def searchPath(problem, dstructure):
     # as the state (node) components neded can differ on the problem
     #received as parameter, we will append more or less attributes
-    frontier.push((problem.getStartState(),False,0))   
+    dstructure.push((problem.getStartState(),[],0))   
     #visited list, used to ensure we don't mistake with infinite loops
     visited = []
-    #parents dictionary, given a child key returns a father value
-    #so we can reconstruct backwards our path till the solution
-    parents_dict = dict()
-    while not frontier.isEmpty():
-        current = frontier.pop()
-        visited.append(current)
-        #if state == goal find our path 
+    while not dstructure.isEmpty():
+        current, path, cost = dstructure.pop()
+        #if state == goal return path 
         if problem.isGoalState(current):
-            path = []
-            aux = current
-            while parents_dict.has_key(aux):    
-                path.append(aux[1])
-                aux = parents_dict[aux]
-            path.reverse()
             return path
-        #for every child that node has, push it to frontier
-        #and link the relationship
-        for successor in problem.getSuccessors(current):
-            if successor not in visited:
-                parents_dict[successor] = current
-                frontier.push(successor)
-    return []
-
-def breadthFirstSearch(problem):
-    frontier = util.Queue()
-    return searchGoal(problem, frontier)
+        #append current node to visited list
+        if current not in visited:
+            visited.append(current)
+            #for every successor, push it to the datastructure keep the iteration
+            for succ, dire, sCost in problem.getSuccessors(current):
+                dstructure.push((succ, dire, sCost))
 
 def uniformCostSearch(problem):
     """Search the node of least total cost first."""
@@ -130,39 +118,18 @@ def nullHeuristic(state, problem=None):
     return 0
 
 def aStarSearch(problem, heuristic=nullHeuristic):
-    from collections import defaultdict
-    #default value of infinite in every key of the dictionary
-    #so we can update it easily
-    cost = defaultdict(lambda x : 9999999)
-    startNode = problem.getStartState()
-    cost[startNode] = 0
-    #we will use a priority queue that differs on the cost of the path through an heuristic
-    queue = util.PriorityQueueWithFunction(lambda x : cost[x]+heuristic(x,problem))
-    queue.push(startNode)
-    visited = []
-    parents_dict = dict()
-    while not queue.isEmpty():
-        current = queue.pop()
-        visited.append(current)
+    pQueue = util.PriorityQueue()
+    pQueue.push((problem.getStartState(),[],0)0)
+    visited=[]
+    while not pQueue.isEmpty():
+        current, path, cost = pQueue.pop()
         if problem.isGoalState(current):
-            path = []
-            aux = current
-            while parents_dict.has_key(aux):
-                path.append(aux[1])
-                aux = parents_dict[aux]
-            path.reverse()
             return path
-        #in the case of astar, we need to check actual cost of successor and update it
-        #if we found a better way into it, similar to dijkstras algorythm
-        for successor in problem.getSuccessors(current):       
-            if successor not in visited or cost[successor] > cost[current] + successor[2] : 
-                visited.append(successor)
-                parents_dict[successor] = current
-                cost[successor] = cost[current] + successor[2]
-                queue.push(successor)    
-    return []
-
-
+        if current not in visited:
+            visited.append(current)
+            for succ, dire, sCost in problem.getSuccessors(current):
+                pQueue.push((succ, path+[dire], sCost + cost + heuristic(succ, problem)))
+                
 # Abbreviations
 bfs = breadthFirstSearch
 dfs = depthFirstSearch
